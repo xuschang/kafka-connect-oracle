@@ -86,7 +86,7 @@ public class LogMinerThread implements Runnable {
     private DataSchemaStruct dataSchemaStruct;  
     private OracleSourceConnectorUtils utils;    
 
-    public LogMinerThread(BlockingQueue<SourceRecord> mq,Connection dbConn,Long streamOffsetScn,CallableStatement logMinerStartStmt,String logMinerSelectSql,int dbFetchSize,String topicConfig,String dbNameAlias,OracleSourceConnectorUtils utils){
+    public LogMinerThread(BlockingQueue<SourceRecord> mq,Connection dbConn,Long streamOffsetScn,CallableStatement logMinerStartStmt,String logMinerSelectSql,int dbFetchSize,String topicConfig,String dbNameAlias,OracleSourceConnectorUtils utils,String filters){
       this.sourceRecordMq = mq;
       this.dbConn = dbConn;
       this.streamOffsetScn = streamOffsetScn;

@@ -98,7 +98,17 @@ public class OracleSourceConnectorUtils{
     }
 
     protected String getLogMinerSelectSqlDeSupportCM(){
-      return this.logMinerSelectSqlDeSupportCM;
+      return filterLogMinerSelectSqlDesuportCM();
+    }
+
+    private  String filterLogMinerSelectSqlDesuportCM(){
+        String [] filters = config.getOperatorFilter().split(",");
+        String res = logMinerSelectSqlDeSupportCM;
+        for(String filter:filters){
+            res = res.replace("PER_"+filter.trim().toUpperCase(),filter.trim().toUpperCase());
+        }
+        log.info("after filter,the SQL is "+res);
+        return res;
     }
 
     protected Map<String,String> getTableColType(){
@@ -146,7 +156,9 @@ public class OracleSourceConnectorUtils{
           logMinerSelectWhereStmt=logMinerSelectWhereStmt.substring(0,logMinerSelectWhereStmt.length()-4)+")";
         }
         logMinerSelectSql+=logMinerSelectWhereStmt;
-        logMinerSelectSqlDeSupportCM+=logMinerSelectWhereStmt+"))";
+        logMinerSelectSqlDeSupportCM = filterLogMinerSelectSqlDesuportCM();
+        logMinerSelectSqlDeSupportCM +=logMinerSelectWhereStmt+"))";
+        log.info("after -filte " + logMinerSelectSqlDeSupportCM);
     }
 
     protected void loadTable(String owner,String tableName,String operation) throws SQLException{

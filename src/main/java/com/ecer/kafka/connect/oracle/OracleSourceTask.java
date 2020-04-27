@@ -62,7 +62,8 @@ public class OracleSourceTask extends SourceTask {
   private Long streamOffsetCommitScn;
   private String streamOffsetRowId;  
   private Long streamOffsetCtrl;
-  private String topic=null;  
+  private String topic=null;
+  private String filter;
   public OracleSourceConnectorConfig config;
   private OracleSourceConnectorUtils utils;
   private static Connection dbConn;
@@ -107,6 +108,8 @@ public class OracleSourceTask extends SourceTask {
     config=new OracleSourceConnectorConfig(map);    
     topic=config.getTopic();
     dbName=config.getDbNameAlias();
+    filter = config.getOperatorFilter();
+    log.info("filter"+filter);
     parseDmlData=config.getParseDmlData();
     String startSCN = config.getStartScn();
     log.info("Oracle Kafka Connector is starting on {}",config.getDbNameAlias());
@@ -195,7 +198,7 @@ public class OracleSourceTask extends SourceTask {
       log.info("Logminer started successfully");
       }else{
         //tLogMiner = new Thread(new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils));        
-        tLogMiner = new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils);
+        tLogMiner = new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils,filter);
         //tLogMiner.start();
         executor.submit(tLogMiner);
         
