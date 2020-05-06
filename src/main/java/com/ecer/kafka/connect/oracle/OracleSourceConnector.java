@@ -1,5 +1,6 @@
 package com.ecer.kafka.connect.oracle;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,10 +22,9 @@ public class OracleSourceConnector extends SourceConnector {
 
   @Override
   public void start(Map<String, String> map) {
-    config = new OracleSourceConnectorConfig(map);    
-    
-    
-    String dbName = config.getDbName();    
+    config = new OracleSourceConnectorConfig(map);
+
+    String dbName = config.getDbName();
     if (dbName.equals("")){
       throw new ConnectException("Missing Db Name property");
     }
@@ -33,6 +33,7 @@ public class OracleSourceConnector extends SourceConnector {
       throw new ConnectException("Could not find schema or table entry for connector to capture");
     }    
     //TODO: Add things you need to do to setup your connector.
+    OracleSourceTask.ispause = true;
   }
 
   @Override
