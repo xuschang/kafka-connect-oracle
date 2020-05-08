@@ -33,7 +33,7 @@ public class OracleSourceConnector extends SourceConnector {
       throw new ConnectException("Could not find schema or table entry for connector to capture");
     }    
     //TODO: Add things you need to do to setup your connector.
-    OracleSourceTask.ispause = true;
+    OracleSourceTask.closed = false;
   }
 
   @Override

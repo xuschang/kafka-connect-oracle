@@ -65,16 +65,16 @@ public class OracleSourceTask extends SourceTask {
   private static Connection dbConn;
   String logMinerOptions=OracleConnectorSQL.LOGMINER_START_OPTIONS;
   String logMinerOptionsDeSupportCM=OracleConnectorSQL.LOGMINER_START_OPTIONS_DESUPPORT_CM;
-  String logMinerStartScr=OracleConnectorSQL.START_LOGMINER_CMD;
+  String prelogMinerStartScr=OracleConnectorSQL.START_LOGMINER_CMD;
+  String logMinerStartScr=null;
   CallableStatement logMinerStartStmt=null;
   CallableStatement logMinerStopStmt = null;
   String logMinerSelectSql;
   static PreparedStatement logMinerSelect;
-  static boolean ispause = false;
   PreparedStatement currentSCNStmt;
   ResultSet logMinerData;
   ResultSet currentScnResultSet;  
-  private boolean closed=false;
+  static boolean closed=false;
   Boolean parseDmlData;
   static int ix=0;
   boolean skipRecord=true;
@@ -95,15 +95,19 @@ public class OracleSourceTask extends SourceTask {
 
   public static void closeDbConn() throws SQLException{
     logMinerSelect.cancel();
-//    dbConn.close();
-    ispause = true;
+    dbConn.close();
+    closed = true;
   }
 
 
   @Override
   public void start(Map<String, String> map) {
     //TODO: Do things here that are required to start your task. This could be open a connection to a database, etc.
-    config=new OracleSourceConnectorConfig(map);    
+    config=new OracleSourceConnectorConfig(map);
+    dostart();
+  }
+
+  private void dostart() {
     topic=config.getTopic();
     dbName=config.getDbNameAlias();
     filter = config.getOperatorFilter();
@@ -124,7 +128,7 @@ public class OracleSourceTask extends SourceTask {
         oraDeSupportCM=true;
         logMinerSelectSql = utils.getLogMinerSelectSqlDeSupportCM();
       }
-      logMinerStartScr=logMinerStartScr+(oraDeSupportCM ? logMinerOptionsDeSupportCM : logMinerOptions)+") \n; end;";
+      logMinerStartScr=prelogMinerStartScr+(oraDeSupportCM ? logMinerOptionsDeSupportCM : logMinerOptions)+") \n; end;";
       //logMinerStartScr=logMinerStartScr+logMinerOptions+") \n; end;";
       logMinerStartStmt=dbConn.prepareCall(logMinerStartScr);
       Map<String,Object> offset = context.offsetStorageReader().offset(Collections.singletonMap(LOG_MINER_OFFSET_FIELD, dbName));
@@ -230,8 +234,13 @@ public class OracleSourceTask extends SourceTask {
     //注意过滤，不能删除
     //TODO: Create SourceRecord objects that will be sent the kafka cluster.
     String sqlX="";
+
     try {
       ArrayList<SourceRecord> records = new ArrayList<>();
+      if(this.closed == false && dbConn.isClosed()){
+        this.closed = false;
+        dostart();
+      }
       //default false
       if (!oraDeSupportCM){
         while(!this.closed && logMinerData.next()){
