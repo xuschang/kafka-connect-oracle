@@ -43,5 +43,7 @@ public class DataSchemaStruct{
 
     public void setBeforeDataStruct(Struct beforeDataStruct){
         this.beforeDataStruct=beforeDataStruct;
-    }    
+    }
+
+
 }

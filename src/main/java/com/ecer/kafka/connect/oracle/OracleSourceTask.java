@@ -35,6 +35,9 @@ import java.util.concurrent.TimeUnit;
 import com.ecer.kafka.connect.oracle.models.Data;
 import com.ecer.kafka.connect.oracle.models.DataSchemaStruct;
 
+import org.apache.kafka.connect.data.Field;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -297,13 +300,55 @@ public class OracleSourceTask extends SourceTask {
           //log.info(String.format("Fetched %s rows from database %s ",ix,config.getDbNameAlias())+" "+row.getTimeStamp()+" "+row.getSegName()+" "+row.getScn()+" "+commitScn);
           if (ix % 100 == 0) log.info(String.format("Fetched %s rows from database %s ",ix,config.getDbNameAlias())+" "+row.getTimeStamp());
           dataSchemaStruct = utils.createDataSchema(segOwner, segName, sqlRedo,operation);   
-          if (operation.equals(OPERATION_DDL)) row.setSegName(DDL_TOPIC_POSTFIX);     
-          records.add(new SourceRecord(sourcePartition(), sourceOffset(scn,commitScn,rowId), topic,  dataSchemaStruct.getDmlRowSchema(), setValueV2(row,dataSchemaStruct)));                          
+          if (operation.equals(OPERATION_DDL)) row.setSegName(DDL_TOPIC_POSTFIX);
+          //这里面需要有一个Schema，和一个列表
+          SchemaBuilder dataSchemaBuiler = SchemaBuilder.struct().name("value");
+          dataSchemaBuiler.field("$operation",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("$timestamp",org.apache.kafka.connect.data.Timestamp.SCHEMA);
+          dataSchemaBuiler.field("$table_name",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("$database",Schema.STRING_SCHEMA);
+          List<Field> fields = null;
+          if(dataSchemaStruct.getDataStruct() != null)
+            fields = dataSchemaStruct.getDataStruct().schema().fields();
+          else
+            fields = dataSchemaStruct.getBeforeDataStruct().schema().fields();
+          for(Field item:fields){
+            if(!item.name().contains("$"))
+              dataSchemaBuiler.field(item.name(),item.schema());
+          }
+          Schema dataSchemaCust = dataSchemaBuiler.build();
+          Struct valueStruct = new Struct(dataSchemaCust);
+           valueStruct.put("$database", row.getSegOwner())
+                  .put("$table_name", row.getSegName());
+          for(Field item:dataSchemaCust.fields()){
+              if(item.name().contains("$")){
+                continue;
+              }
+            Struct dataStruct = dataSchemaStruct.getDataStruct();
+            Struct beforeDataStruct = dataSchemaStruct.getBeforeDataStruct();
+            try {
+              valueStruct.put(item.name(), dataSchemaStruct.getDataStruct().get(item.name()));
+            }catch (Exception e){
+              valueStruct.put(item.name(), dataSchemaStruct.getBeforeDataStruct().get(item.name()));
+            }finally {
+              try {
+                if (valueStruct.get(item.name()) == null)
+                  valueStruct.put(item.name(), null);
+              }catch (Exception e){
+                valueStruct.put(item.name(), null);
+              }
+            }
+          }
+          valueStruct
+                  .put("$operation", row.getOperation())
+                  .put("$timestamp", row.getTimeStamp());
+
+          records.add(new SourceRecord(sourcePartition(), sourceOffset(scn,commitScn,rowId), topic,  dataSchemaCust, valueStruct));
           streamOffsetScn=scn;
           return records;
         }
       }else{
-        
+
         records.add(sourceRecordMq.take());
         return records;
       }      
@@ -350,8 +395,30 @@ public class OracleSourceTask extends SourceTask {
               .put(DATA_ROW_FIELD, dataSchemaStruct.getDataStruct())
               .put(BEFORE_DATA_ROW_FIELD, dataSchemaStruct.getBeforeDataStruct());
     return valueStruct;
-    
-  }  
+  }
+
+
+  private Struct setValueCust(Data row,DataSchemaStruct dataSchemaStruct) {
+    //这里面需要生成schema，然后生成记录
+    Struct valueStruct = new Struct(dataSchemaStruct.getDmlRowSchema());
+    Struct dataStruct = null;
+    if(null==dataSchemaStruct.getDataStruct()){
+      dataStruct = dataSchemaStruct.getBeforeDataStruct();
+    }else{
+      dataStruct = dataSchemaStruct.getDataStruct();
+    }
+     valueStruct.put(SEG_OWNER_FIELD, row.getSegOwner())
+            .put(TABLE_NAME_FIELD, row.getSegName())
+            .put(TIMESTAMP_FIELD, row.getTimeStamp())
+            .put(SQL_REDO_FIELD, row.getSqlRedo())
+            .put(OPERATION_FIELD, row.getOperation())
+             .put(DATA_ROW_FIELD,dataStruct)
+             .put(BEFORE_DATA_ROW_FIELD,null)
+             .put(SCN_FIELD, row.getScn());
+    return valueStruct;
+  }
+
+
 
   private Map<String,String> sourcePartition(){
     return Collections.singletonMap(LOG_MINER_OFFSET_FIELD, dbName);
