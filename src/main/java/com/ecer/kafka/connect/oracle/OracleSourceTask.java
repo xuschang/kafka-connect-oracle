@@ -240,13 +240,12 @@ public class OracleSourceTask extends SourceTask {
 
     try {
       ArrayList<SourceRecord> records = new ArrayList<>();
-      if(this.closed == false && dbConn.isClosed()){
-        this.closed = false;
+      if(/**this.closed == false && **/dbConn.isClosed()){
         dostart();
       }
       //default false
       if (!oraDeSupportCM){
-        while(!this.closed && logMinerData.next()){
+        while(/**!this.closed && **/logMinerData.next()){
           if (log.isDebugEnabled()) {
             logRawMinerData();
           }

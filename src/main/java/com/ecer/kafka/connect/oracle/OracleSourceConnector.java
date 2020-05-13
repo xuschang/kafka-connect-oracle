@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.connect.connector.ConnectorContext;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceConnector;
@@ -21,7 +22,20 @@ public class OracleSourceConnector extends SourceConnector {
   }
 
   @Override
+  public void reconfigure(Map<String, String> props) {
+    super.reconfigure(props);
+    OracleSourceTask.closed = false;
+  }
+
+  @Override
+  public void initialize(ConnectorContext ctx) {
+    super.initialize(ctx);
+    OracleSourceTask.closed = false;
+  }
+
+  @Override
   public void start(Map<String, String> map) {
+    OracleSourceTask.closed = false;
     config = new OracleSourceConnectorConfig(map);
 
     String dbName = config.getDbName();
@@ -33,7 +47,6 @@ public class OracleSourceConnector extends SourceConnector {
       throw new ConnectException("Could not find schema or table entry for connector to capture");
     }    
     //TODO: Add things you need to do to setup your connector.
-    OracleSourceTask.closed = false;
   }
 
   @Override
