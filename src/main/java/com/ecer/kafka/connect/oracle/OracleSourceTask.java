@@ -367,7 +367,6 @@ public class OracleSourceTask extends SourceTask {
   @Override
   public void stop() {
     log.info("Stop called for logminer");
-    this.closed=true;
     try {            
       log.info("Logminer session cancel");
       logMinerSelect.cancel();

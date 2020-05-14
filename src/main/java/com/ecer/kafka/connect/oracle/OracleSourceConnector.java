@@ -24,18 +24,15 @@ public class OracleSourceConnector extends SourceConnector {
   @Override
   public void reconfigure(Map<String, String> props) {
     super.reconfigure(props);
-    OracleSourceTask.closed = false;
   }
 
   @Override
   public void initialize(ConnectorContext ctx) {
     super.initialize(ctx);
-    OracleSourceTask.closed = false;
   }
 
   @Override
   public void start(Map<String, String> map) {
-    OracleSourceTask.closed = false;
     config = new OracleSourceConnectorConfig(map);
 
     String dbName = config.getDbName();
