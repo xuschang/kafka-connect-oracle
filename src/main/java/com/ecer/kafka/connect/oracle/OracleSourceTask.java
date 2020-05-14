@@ -65,7 +65,7 @@ public class OracleSourceTask extends SourceTask {
   private String filter;
   public OracleSourceConnectorConfig config;
   private OracleSourceConnectorUtils utils;
-  private static Connection dbConn;
+  private  Connection dbConn;
   String logMinerOptions=OracleConnectorSQL.LOGMINER_START_OPTIONS;
   String logMinerOptionsDeSupportCM=OracleConnectorSQL.LOGMINER_START_OPTIONS_DESUPPORT_CM;
   String prelogMinerStartScr=OracleConnectorSQL.START_LOGMINER_CMD;
@@ -92,11 +92,11 @@ public class OracleSourceTask extends SourceTask {
     return VersionUtil.getVersion();
   }
 
-  public static Connection getThreadConnection(){
+  public  Connection getThreadConnection(){
     return dbConn;
   }
 
-  public static void closeDbConn() throws SQLException{
+  public  void closeDbConn() throws SQLException{
     logMinerSelect.cancel();
     dbConn.close();
   }
@@ -110,6 +110,11 @@ public class OracleSourceTask extends SourceTask {
   }
 
   private void dostart() {
+    try {
+      Thread.sleep(5000);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
     topic=config.getTopic();
     dbName=config.getDbNameAlias();
     filter = config.getOperatorFilter();
@@ -212,6 +217,18 @@ public class OracleSourceTask extends SourceTask {
             tLogMiner.shutDown();
             executor.shutdown();
             try {
+              log.info("Logminer session cancel");
+              logMinerSelect.cancel();
+              OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
+              if (dbConn!=null){
+                log.info("Closing database connection.Last SCN : {}",streamOffsetScn);
+                logMinerSelect.close();
+                logMinerStartStmt.close();
+                dbConn.close();
+              }
+            } catch (SQLException e) {log.error(e.getMessage());}
+
+            try {
               log.info("Waiting for logminer thread to shut down,exiting cleanly");
               if (executor.awaitTermination(20000, TimeUnit.MILLISECONDS)) {
               }
@@ -239,7 +256,7 @@ public class OracleSourceTask extends SourceTask {
 
     try {
       ArrayList<SourceRecord> records = new ArrayList<>();
-      if(dbConn.isClosed()){
+      if(dbConn.isClosed() || logMinerData.isClosed()){
         this.closed = false;
         dostart();
       }

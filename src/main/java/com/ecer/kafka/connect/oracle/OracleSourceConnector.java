@@ -64,9 +64,9 @@ public class OracleSourceConnector extends SourceConnector {
   @Override
   public void stop() {
     //TODO: Do things that are necessary to stop your connector.    
-    if (OracleSourceTask.getThreadConnection()!=null){
-      try {OracleSourceTask.closeDbConn();} catch (Exception e) {} 
-    }
+//    if (OracleSourceTask.getThreadConnection()!=null){
+//      try {OracleSourceTask.closeDbConn();} catch (Exception e) {}
+//    }
   }
 
   @Override

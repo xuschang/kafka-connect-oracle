@@ -141,7 +141,6 @@ public class LogMinerThread implements Runnable {
             String xid = logMinerData.getString(XID_FIELD);
             Long scn=logMinerData.getLong(SCN_FIELD);
             Timestamp timeStamp=logMinerData.getTimestamp(TIMESTAMP_FIELD);
-            Timestamp commitTimeStamp=logMinerData.getTimestamp(COMMIT_TIMESTAMP_FIELD);
             Long commitScn=logMinerData.getLong(COMMIT_SCN_FIELD);
             String rowId=logMinerData.getString(ROW_ID_FIELD);
             //#log.info(operation+"-"+xid+"-"+scn);
@@ -178,10 +177,9 @@ public class LogMinerThread implements Runnable {
                 while (iterator.hasNext()){
                   //records.add(createRecords(iterator.next()));
                   DMLRow row = iterator.next();
-                  row.setCommitTimestamp(commitTimeStamp);
                   row.setCommitScn(commitScn);
                   ix++;
-                  if (ix % 10000 == 0) log.info(String.format("Fetched %s rows from db:%s ",ix,dbNameAlias)+" "+sequence+" "+oldSequence+" "+row.getScn()+" "+row.getCommitScn()+" "+row.getCommitTimestamp());
+                  if (ix % 10000 == 0) log.info(String.format("Fetched %s rows from db:%s ",ix,dbNameAlias)+" "+sequence+" "+oldSequence+" "+row.getScn()+" "+row.getCommitScn());
                   //log.info(row.getScn()+"-"+row.getCommitScn()+"-"+row.getTimestamp()+"-"+"-"+row.getCommitTimestamp()+"-"+row.getXid()+"-"+row.getSegName()+"-"+row.getRowId()+"-"+row.getOperation());
                   try {
                     sourceRecordMq.offer(createRecords(row));
@@ -216,8 +214,6 @@ public class LogMinerThread implements Runnable {
             if ((operation.equals(OPERATION_INSERT))||(operation.equals(OPERATION_UPDATE))||(operation.equals(OPERATION_DELETE))||(operation.equals(OPERATION_DDL))){
 
               boolean contSF = logMinerData.getBoolean(CSF_FIELD);
-              String rollback=logMinerData.getString(ROLLBACK_FIELD);
-              Boolean trContainsRollback = rollback.equals("1") ? true : false;
               if (skipRecord){
                 if ((scn.equals(streamOffsetCtrl))&&(commitScn.equals(streamOffsetCommitScn))&&(rowId.equals(streamOffsetRowId))&&(!contSF)){
                   skipRecord=false;
@@ -240,7 +236,7 @@ public class LogMinerThread implements Runnable {
               //@Data row = new Data(scn, segOwner, segName, sqlRedo,timeStamp,operation);
               //@topic = config.getTopic().equals("") ? (config.getDbNameAlias()+DOT+row.getSegOwner()+DOT+row.getSegName()).toUpperCase() : topic;
               topicName = topicConfig.equals("") ? (dbNameAlias+DOT+segOwner+DOT+(operation.equals(OPERATION_DDL) ? DDL_TOPIC_POSTFIX : segName)).toUpperCase() : topicConfig;
-              DMLRow dmlRow = new DMLRow(xid, scn, commitScn , timeStamp, operation, segOwner, segName, rowId, sqlRedo,topicName,commitTimeStamp,rollback);
+              DMLRow dmlRow = new DMLRow(xid, scn, commitScn , timeStamp, operation, segOwner, segName, rowId, sqlRedo,topicName,null);
               //#log.info("Row :{} , scn:{} , commitScn:{} ,sqlRedo:{}",ix,scn,commitScn,sqlX);
 
               //dmlRowCollection2.clear();
@@ -252,12 +248,12 @@ public class LogMinerThread implements Runnable {
                 dmlRowCollection = transaction.getDmlRowCollection();
                 dmlRowCollection.add(dmlRow);
                 transaction.setDmlRowCollection(dmlRowCollection);
-                if (!transaction.getContainsRollback()) transaction.setContainsRollback(trContainsRollback);
+                if (!transaction.getContainsRollback()) transaction.setContainsRollback(null);
                 trnCollection.replace(xid, transaction);
               }else{
                 //#log.error("Null Transaction {}",xid);
                 dmlRowCollection.add(dmlRow);
-                transaction = new Transaction(xid, scn, timeStamp, dmlRowCollection, trContainsRollback);
+                transaction = new Transaction(xid, scn, timeStamp, dmlRowCollection, null);
                 trnCollection.put(xid, transaction);
               }
             }

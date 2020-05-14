@@ -8,7 +8,6 @@ public class DMLRow{
     private Long scn = 0L;
     private Long commitScn = 0L;
     private Timestamp timestamp = null;
-    private Timestamp commitTimestamp = null;
     private String operation = null;
     private String segOwner = null;
     private String segName = null;
@@ -17,7 +16,7 @@ public class DMLRow{
     private String topic = null;
     private String rollback = null;
 
-    public DMLRow(String xid,Long scn,Long commitScn,Timestamp timestamp,String operation,String segOwner,String segName,String rowId,String sqlRedo,String topic,Timestamp commitTimeStamp,String rollback){
+    public DMLRow(String xid,Long scn,Long commitScn,Timestamp timestamp,String operation,String segOwner,String segName,String rowId,String sqlRedo,String topic,String rollback){
         this.xid = xid;
         this.scn = scn;
         this.commitScn = commitScn;
@@ -28,7 +27,6 @@ public class DMLRow{
         this.rowId = rowId;
         this.sqlRedo = sqlRedo;
         this.topic = topic;
-        this.commitTimestamp = commitTimeStamp;
         this.rollback = rollback;
     }
 
@@ -64,13 +62,7 @@ public class DMLRow{
         this.timestamp = timestamp;
     }    
 
-    public Timestamp getCommitTimestamp(){
-        return commitTimestamp;
-    }
 
-    public void setCommitTimestamp(Timestamp commitTimeStamp){
-        this.commitTimestamp = commitTimeStamp;
-    }        
 
     public String getOperation(){
         return operation;
