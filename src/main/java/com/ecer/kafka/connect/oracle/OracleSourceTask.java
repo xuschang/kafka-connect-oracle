@@ -77,7 +77,7 @@ public class OracleSourceTask extends SourceTask {
   PreparedStatement currentSCNStmt;
   ResultSet logMinerData;
   ResultSet currentScnResultSet;  
-  static boolean closed=false;
+  private boolean closed=false;
   Boolean parseDmlData;
   static int ix=0;
   boolean skipRecord=true;
@@ -99,7 +99,6 @@ public class OracleSourceTask extends SourceTask {
   public static void closeDbConn() throws SQLException{
     logMinerSelect.cancel();
     dbConn.close();
-    closed = true;
   }
 
 
@@ -240,12 +239,13 @@ public class OracleSourceTask extends SourceTask {
 
     try {
       ArrayList<SourceRecord> records = new ArrayList<>();
-      if(/**this.closed == false && **/dbConn.isClosed()){
+      if(dbConn.isClosed()){
+        this.closed = false;
         dostart();
       }
       //default false
       if (!oraDeSupportCM){
-        while(/**!this.closed && **/logMinerData.next()){
+        while(!this.closed && logMinerData.next()){
           if (log.isDebugEnabled()) {
             logRawMinerData();
           }
@@ -367,7 +367,8 @@ public class OracleSourceTask extends SourceTask {
   @Override
   public void stop() {
     log.info("Stop called for logminer");
-    try {            
+    try {
+      this.closed = true;
       log.info("Logminer session cancel");
       logMinerSelect.cancel();
       OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
