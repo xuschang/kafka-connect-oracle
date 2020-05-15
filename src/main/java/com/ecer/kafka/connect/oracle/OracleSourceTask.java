@@ -124,6 +124,7 @@ public class OracleSourceTask extends SourceTask {
     log.info("Oracle Kafka Connector is starting on {}",config.getDbNameAlias());
     try {
       dbConn = new OracleConnection().connect(config);
+      dbConn.setAutoCommit(false);
       utils = new OracleSourceConnectorUtils(dbConn, config);
       int dbVersion = utils.getDbVersion();
       log.info("Connected to database version {}",dbVersion);
@@ -224,6 +225,11 @@ public class OracleSourceTask extends SourceTask {
                 log.info("Closing database connection.Last SCN : {}",streamOffsetScn);
                 logMinerSelect.close();
                 logMinerStartStmt.close();
+                try {
+                  Thread.sleep(5000);
+                }catch (Exception e){
+                  log.error("run stop error",e);
+                }
                 dbConn.close();
               }
             } catch (SQLException e) {log.error(e.getMessage());}
@@ -371,6 +377,7 @@ public class OracleSourceTask extends SourceTask {
       log.info("Logminer stoppped successfully");       
     } catch (SQLException e){
       log.error("SQL error during poll",e );
+      return new ArrayList<>();
     }catch(JSQLParserException e){
       log.error("SQL parser error during poll ", e);
     }
