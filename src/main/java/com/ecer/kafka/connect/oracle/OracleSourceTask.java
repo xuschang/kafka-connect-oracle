@@ -63,6 +63,7 @@ public class OracleSourceTask extends SourceTask {
   private Long streamOffsetCtrl;
   private String topic=null;
   private String filter;
+  private String taskMax;
   public OracleSourceConnectorConfig config;
   private OracleSourceConnectorUtils utils;
   private  Connection dbConn;
@@ -118,6 +119,7 @@ public class OracleSourceTask extends SourceTask {
     topic=config.getTopic();
     dbName=config.getDbNameAlias();
     filter = config.getOperatorFilter();
+    taskMax = config.getTaskMax();
     log.info("filter"+filter);
     parseDmlData=config.getParseDmlData();
     String startSCN = config.getStartScn();
@@ -260,6 +262,7 @@ public class OracleSourceTask extends SourceTask {
     //TODO: Create SourceRecord objects that will be sent the kafka cluster.
     String sqlX="";
 
+    int tk = Integer.parseInt(taskMax);
     try {
       ArrayList<SourceRecord> records = new ArrayList<>();
       if(dbConn.isClosed() || logMinerData.isClosed()){
@@ -273,7 +276,8 @@ public class OracleSourceTask extends SourceTask {
             logRawMinerData();
           }
           Long scn=logMinerData.getLong(SCN_FIELD);
-          Long commitScn=logMinerData.getLong(COMMIT_SCN_FIELD);
+          if(scn.hashCode()%tk!=Thread.currentThread().getName().hashCode()%tk) continue;
+                  Long commitScn=logMinerData.getLong(COMMIT_SCN_FIELD);
           String rowId=logMinerData.getString(ROW_ID_FIELD);
           boolean contSF = logMinerData.getBoolean(CSF_FIELD);
           //fiter scan
