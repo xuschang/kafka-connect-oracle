@@ -26,6 +26,7 @@ public class OracleSourceConnectorConfig extends AbstractConfig {
   public static final String TABLE_BLACKLIST = "table.blacklist";
   public static final String OPERATOR_FILTER = "table.operator.filter";
   public static final String TASK_MAX = "tasks.max";
+  public static final String TASK_ID = "tasks.id";
 
   
   public OracleSourceConnectorConfig(ConfigDef config, Map<String, String> parsedConfig) {
@@ -53,7 +54,8 @@ public class OracleSourceConnectorConfig extends AbstractConfig {
         .define(MULTITENANT, Type.BOOLEAN, Importance.HIGH, "Database is multitenant (container)")
         .define(TABLE_BLACKLIST, Type.STRING, Importance.LOW, "Table will not be mined")
         .define(OPERATOR_FILTER,Type.STRING,Importance.HIGH,"Operator filter")
-            .define(TASK_MAX,Type.STRING,Importance.HIGH,"The Num of Tasks");
+            .define(TASK_MAX,Type.STRING,Importance.HIGH,"The Num of Tasks")
+            .define(TASK_ID,Type.STRING,Importance.HIGH,"The id of Tasks");
   }
 
   public String getDbNameAlias(){ return this.getString(DB_NAME_ALIAS);}
@@ -74,5 +76,9 @@ public class OracleSourceConnectorConfig extends AbstractConfig {
 
   public  String getTaskMax() {
     return this.getString(TASK_MAX);
+  }
+
+  public  String getTaskId() {
+    return this.getString(TASK_ID);
   }
 }

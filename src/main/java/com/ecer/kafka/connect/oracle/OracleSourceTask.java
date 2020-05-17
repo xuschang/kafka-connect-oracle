@@ -64,6 +64,7 @@ public class OracleSourceTask extends SourceTask {
   private String topic=null;
   private String filter;
   private String taskMax;
+  private String taskId;
   public OracleSourceConnectorConfig config;
   private OracleSourceConnectorUtils utils;
   private  Connection dbConn;
@@ -120,6 +121,8 @@ public class OracleSourceTask extends SourceTask {
     dbName=config.getDbNameAlias();
     filter = config.getOperatorFilter();
     taskMax = config.getTaskMax();
+    taskId = config.getTaskId();
+    if(taskMax.equals("1")) taskId = "0";
     log.info("filter"+filter);
     parseDmlData=config.getParseDmlData();
     String startSCN = config.getStartScn();
@@ -203,11 +206,12 @@ public class OracleSourceTask extends SourceTask {
       if (!oraDeSupportCM){
       logMinerStartStmt.setLong(1, streamOffsetScn);
       logMinerStartStmt.execute();
+        log.info("LogminerStartStmt started successfully  "+Thread.currentThread().getName());
       logMinerSelect=dbConn.prepareCall(logMinerSelectSql);
       logMinerSelect.setFetchSize(config.getDbFetchSize());
       logMinerSelect.setLong(1, streamOffsetCommitScn);
       logMinerData=logMinerSelect.executeQuery();
-      log.info("Logminer started successfully");
+      log.info("Logminer started successfully  "+Thread.currentThread().getName());
       }else{
         //tLogMiner = new Thread(new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils));
         tLogMiner = new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils,filter);
@@ -276,8 +280,13 @@ public class OracleSourceTask extends SourceTask {
             logRawMinerData();
           }
           Long scn=logMinerData.getLong(SCN_FIELD);
-          if(scn.hashCode()%tk!=Thread.currentThread().getName().hashCode()%tk) continue;
-                  Long commitScn=logMinerData.getLong(COMMIT_SCN_FIELD);
+          log.info("name:"+Thread.currentThread().getName()+" "+scn.hashCode()%tk+"-"+taskId);
+          if(scn.hashCode()%tk!=Integer.parseInt(taskId)){
+            streamOffsetScn=scn;
+            return records;
+          }
+
+          Long commitScn=logMinerData.getLong(COMMIT_SCN_FIELD);
           String rowId=logMinerData.getString(ROW_ID_FIELD);
           boolean contSF = logMinerData.getBoolean(CSF_FIELD);
           //fiter scan
@@ -304,7 +313,9 @@ public class OracleSourceTask extends SourceTask {
           String operation = logMinerData.getString(OPERATION_FIELD);
           if (sqlRedo.contains(TEMPORARY_TABLE)) continue;
           //with out ddl
-          if (operation.equals(OPERATION_DDL) && (logMinerData.getString("INFO").startsWith("INTERNAL DDL"))) continue;
+          if (operation.equals(OPERATION_DDL) && (logMinerData.getString("INFO").startsWith("INTERNAL DDL"))){
+            continue;
+          }
           while(contSF){
             logMinerData.next();
             sqlRedo +=  logMinerData.getString(SQL_REDO_FIELD);
@@ -313,6 +324,7 @@ public class OracleSourceTask extends SourceTask {
           //fix operator
           List filters = Arrays.asList(config.getOperatorFilter().toUpperCase().replaceAll("\\s\\+","").split(","));
           for(Object item:filters){
+            streamOffsetScn=scn;
             log.error("fiter error:"+item);
           }
           log.error("operator error:"+operation.trim().toUpperCase());
@@ -380,7 +392,8 @@ public class OracleSourceTask extends SourceTask {
       }      
       log.info("Logminer stoppped successfully");       
     } catch (SQLException e){
-      log.error("SQL error during poll",e );
+      log.error("SQL error during poll,you need restart the connector",e );
+      stop();
       return new ArrayList<>();
     }catch(JSQLParserException e){
       log.error("SQL parser error during poll ", e);

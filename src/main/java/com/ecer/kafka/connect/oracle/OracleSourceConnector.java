@@ -56,7 +56,7 @@ public class OracleSourceConnector extends SourceConnector {
   public List<Map<String, String>> taskConfigs(int step) {
     //TODO: Define the individual task configurations that will be executed.
     ArrayList<Map<String,String>> configs = new ArrayList<>(1);
-    for(int i = 0;i < step;i++){
+    for(int i = 0;i < 1;i++){
       configs.add(config.originalsStrings());
     }
     return configs;
