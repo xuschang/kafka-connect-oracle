@@ -272,7 +272,6 @@ public class OracleSourceTask extends SourceTask {
    */
   @Override
   public List<SourceRecord> poll() throws InterruptedException {
-    //ע����ˣ�����ɾ��
     //TODO: Create SourceRecord objects that will be sent the kafka cluster.
     String sqlX="";
 
@@ -304,9 +303,11 @@ public class OracleSourceTask extends SourceTask {
             if(lastBytes != -1 && lastTime != -1)
             while(true){
               int rate = Integer.valueOf(rateBytes);
-              if(rate*1000.0*(long)inputRate.get("time")<(long)inputRate.get("inbyte")){
+              if((rate*1.0/1000.0*((long)inputRate.get("time")-lastTime))<((long)inputRate.get("inbyte")-lastBytes)){
                   Thread.sleep(100);
                   inputRate = OracleSqlUtils.getInputRate(kafkaConn, topic);
+              }else{
+                break;
               }
             }
             lastBytes = (long)inputRate.get("inbyte");
