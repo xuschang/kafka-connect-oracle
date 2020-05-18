@@ -5,21 +5,75 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ListIterator;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.management.MBeanServerConnection;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXServiceURL;
+
 public class OracleSqlUtils {
+    private static final String BYTES_IN_PER_SEC = "kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec";
+    private static final String MONITOR_TOPIC = ",topic=";
+
 
     static final Logger log = LoggerFactory.getLogger(OracleSqlUtils.class);    
 
     public OracleSqlUtils(){
         
     }
+
+    /**
+     * get kafka monitor conn
+     * @param conn
+     * @param URL
+     * @return
+     */
+    public static MBeanServerConnection getMBeanServerConnection(MBeanServerConnection conn,String URL) {
+
+        String jmxURL = "service:jmx:rmi:///jndi/rmi://" + URL + "/jmxrmi";
+        try {
+            if (conn != null) {
+                return conn;
+            }
+            // 初始化连接jmx
+            JMXServiceURL serviceURL = new JMXServiceURL(jmxURL);
+            JMXConnector connector = JMXConnectorFactory.connect(serviceURL, null);
+            conn = connector.getMBeanServerConnection();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return conn;
+    }
+
+
+    public static HashMap getInputRate(MBeanServerConnection conn,String topic){
+        HashMap object = new HashMap<>();
+        ObjectName bytesInPerSecObj = null;
+        Long beforeInBytes = -1L;
+        Long timeStamp = -1L;
+        boolean stauts = true;
+        try {
+             bytesInPerSecObj = new ObjectName(BYTES_IN_PER_SEC + MONITOR_TOPIC + topic);
+             beforeInBytes = (Long) conn.getAttribute(bytesInPerSecObj, "Count");
+             timeStamp = new Date().getTime();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if(null ==  bytesInPerSecObj || -1 == beforeInBytes || -1 == timeStamp)
+            stauts = false;
+        object.put("status",stauts);
+        object.put("inbyte",beforeInBytes);
+        object.put("time",timeStamp);
+        return object;
+    }
+
 
     public static Boolean getLogFilesV2(Connection conn,Long currScn) throws SQLException{        
         int i = 0;

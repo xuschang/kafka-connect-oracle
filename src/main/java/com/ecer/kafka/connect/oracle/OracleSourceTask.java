@@ -46,6 +46,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.sf.jsqlparser.JSQLParserException;
+
+import javax.management.MBeanServerConnection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -65,9 +67,12 @@ public class OracleSourceTask extends SourceTask {
   private String filter;
   private String taskMax;
   private String taskId;
+  private String rateBytes;
   public OracleSourceConnectorConfig config;
   private OracleSourceConnectorUtils utils;
   private  Connection dbConn;
+  private MBeanServerConnection kafkaConn;
+  private String kafkaUrl;
   String logMinerOptions=OracleConnectorSQL.LOGMINER_START_OPTIONS;
   String logMinerOptionsDeSupportCM=OracleConnectorSQL.LOGMINER_START_OPTIONS_DESUPPORT_CM;
   String prelogMinerStartScr=OracleConnectorSQL.START_LOGMINER_CMD;
@@ -80,6 +85,8 @@ public class OracleSourceTask extends SourceTask {
   ResultSet logMinerData;
   ResultSet currentScnResultSet;  
   private boolean closed=false;
+  private long lastTime = -1;
+  private long lastBytes = -1;
   Boolean parseDmlData;
   static int ix=0;
   boolean skipRecord=true;
@@ -122,14 +129,17 @@ public class OracleSourceTask extends SourceTask {
     filter = config.getOperatorFilter();
     taskMax = config.getTaskMax();
     taskId = config.getTaskId();
+    rateBytes = config.getRateBytes().trim();
     if(taskMax.equals("1")) taskId = "0";
     log.info("filter"+filter);
     parseDmlData=config.getParseDmlData();
+    kafkaUrl = config.getKafkaUrl();
     String startSCN = config.getStartScn();
     log.info("Oracle Kafka Connector is starting on {}",config.getDbNameAlias());
     try {
       dbConn = new OracleConnection().connect(config);
       dbConn.setAutoCommit(false);
+      kafkaConn = OracleSqlUtils.getMBeanServerConnection(kafkaConn,kafkaUrl);
       utils = new OracleSourceConnectorUtils(dbConn, config);
       int dbVersion = utils.getDbVersion();
       log.info("Connected to database version {}",dbVersion);
@@ -262,7 +272,7 @@ public class OracleSourceTask extends SourceTask {
    */
   @Override
   public List<SourceRecord> poll() throws InterruptedException {
-    //×¢Òâ¹ýÂË£¬²»ÄÜÉ¾³ý
+    //×¢ï¿½ï¿½ï¿½ï¿½Ë£ï¿½ï¿½ï¿½ï¿½ï¿½É¾ï¿½ï¿½
     //TODO: Create SourceRecord objects that will be sent the kafka cluster.
     String sqlX="";
 
@@ -284,6 +294,23 @@ public class OracleSourceTask extends SourceTask {
           if(scn.hashCode()%tk!=Integer.parseInt(taskId)){
             streamOffsetScn=scn;
             return records;
+          }
+
+          //limit resord
+          HashMap inputRate = OracleSqlUtils.getInputRate(kafkaConn, topic);
+          boolean status = (boolean)inputRate.get("status");
+          if(status){
+            boolean flag = false;
+            if(lastBytes != -1 && lastTime != -1)
+            while(true){
+              int rate = Integer.valueOf(rateBytes);
+              if(rate*1000.0*(long)inputRate.get("time")<(long)inputRate.get("inbyte")){
+                  Thread.sleep(100);
+                  inputRate = OracleSqlUtils.getInputRate(kafkaConn, topic);
+              }
+            }
+            lastBytes = (long)inputRate.get("inbyte");
+            lastTime = (long)inputRate.get("time");
           }
 
           Long commitScn=logMinerData.getLong(COMMIT_SCN_FIELD);
@@ -339,7 +366,7 @@ public class OracleSourceTask extends SourceTask {
           if (ix % 100 == 0) log.info(String.format("Fetched %s rows from database %s ",ix,config.getDbNameAlias())+" "+row.getTimeStamp());
           dataSchemaStruct = utils.createDataSchema(segOwner, segName, sqlRedo,operation);   
           if (operation.equals(OPERATION_DDL)) row.setSegName(DDL_TOPIC_POSTFIX);
-          //ÕâÀïÃæÐèÒªÓÐÒ»¸öSchema£¬ºÍÒ»¸öÁÐ±í
+          //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½Ò»ï¿½ï¿½Schemaï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ð±ï¿½
           SchemaBuilder dataSchemaBuiler = SchemaBuilder.struct().name("value");
           dataSchemaBuiler.field("$operation",Schema.STRING_SCHEMA);
           dataSchemaBuiler.field("$timestamp",org.apache.kafka.connect.data.Timestamp.SCHEMA);
@@ -439,7 +466,7 @@ public class OracleSourceTask extends SourceTask {
 
 
   private Struct setValueCust(Data row,DataSchemaStruct dataSchemaStruct) {
-    //ÕâÀïÃæÐèÒªÉú³Éschema£¬È»ºóÉú³É¼ÇÂ¼
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½schemaï¿½ï¿½È»ï¿½ï¿½ï¿½ï¿½ï¿½É¼ï¿½Â¼
     Struct valueStruct = new Struct(dataSchemaStruct.getDmlRowSchema());
     Struct dataStruct = null;
     if(null==dataSchemaStruct.getDataStruct()){

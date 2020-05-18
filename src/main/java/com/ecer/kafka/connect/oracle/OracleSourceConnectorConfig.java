@@ -27,6 +27,8 @@ public class OracleSourceConnectorConfig extends AbstractConfig {
   public static final String OPERATOR_FILTER = "table.operator.filter";
   public static final String TASK_MAX = "tasks.max";
   public static final String TASK_ID = "tasks.id";
+  public static final String KAFKA_URL = "kafka.url";
+  public static final String RATE_BYTES = "rate.bytes";
 
   
   public OracleSourceConnectorConfig(ConfigDef config, Map<String, String> parsedConfig) {
@@ -55,7 +57,9 @@ public class OracleSourceConnectorConfig extends AbstractConfig {
         .define(TABLE_BLACKLIST, Type.STRING, Importance.LOW, "Table will not be mined")
         .define(OPERATOR_FILTER,Type.STRING,Importance.HIGH,"Operator filter")
             .define(TASK_MAX,Type.STRING,Importance.HIGH,"The Num of Tasks")
-            .define(TASK_ID,Type.STRING,Importance.HIGH,"The id of Tasks");
+            .define(TASK_ID,Type.STRING,Importance.HIGH,"The id of Tasks")
+            .define(KAFKA_URL,Type.STRING,Importance.HIGH,"kafka url")
+            .define(RATE_BYTES,Type.STRING,Importance.HIGH,"rate byte limit");
   }
 
   public String getDbNameAlias(){ return this.getString(DB_NAME_ALIAS);}
@@ -80,5 +84,13 @@ public class OracleSourceConnectorConfig extends AbstractConfig {
 
   public  String getTaskId() {
     return this.getString(TASK_ID);
+  }
+
+  public  String getKafkaUrl() {
+    return this.getString(KAFKA_URL);
+  }
+
+  public  String getRateBytes() {
+    return this.getString(RATE_BYTES);
   }
 }
