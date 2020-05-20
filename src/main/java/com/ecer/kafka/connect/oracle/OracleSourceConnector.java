@@ -68,7 +68,6 @@ public class OracleSourceConnector extends SourceConnector {
     //TODO: Do things that are necessary to stop your connector.    
 //    if (OracleSourceTask.getThreadConnection()!=null){
 //      try {OracleSourceTask.closeDbConn();} catch (Exception e) {}
-    System.out.println("hello world");
 //    }
   }
 

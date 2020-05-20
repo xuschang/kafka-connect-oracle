@@ -80,15 +80,15 @@ public class OracleSourceTask extends SourceTask {
   CallableStatement logMinerStartStmt=null;
   CallableStatement logMinerStopStmt = null;
   String logMinerSelectSql;
-  static PreparedStatement logMinerSelect;
+  private PreparedStatement logMinerSelect;
   PreparedStatement currentSCNStmt;
   ResultSet logMinerData;
   ResultSet currentScnResultSet;  
-  private volatile boolean  closed=false;
+  private  boolean  closed=true;
   private long lastTime = -1;
   private long lastBytes = -1;
   Boolean parseDmlData;
-  static int ix=0;
+  private int ix=0;
   boolean skipRecord=true;
   private DataSchemaStruct dataSchemaStruct;
   Boolean oraDeSupportCM=false;
@@ -364,7 +364,8 @@ public class OracleSourceTask extends SourceTask {
           if (ix % 100 == 0) log.info(String.format("Fetched %s rows from database %s ",ix,config.getDbNameAlias())+" "+row.getTimeStamp());
           dataSchemaStruct = utils.createDataSchema(segOwner, segName, sqlRedo,operation);   
           if (operation.equals(OPERATION_DDL)) row.setSegName(DDL_TOPIC_POSTFIX);
-          //��������Ҫ��һ��Schema����һ���б�
+
+          //schema parse
           SchemaBuilder dataSchemaBuiler = SchemaBuilder.struct().name("value");
           dataSchemaBuiler.field("$operation",Schema.STRING_SCHEMA);
           dataSchemaBuiler.field("$timestamp",org.apache.kafka.connect.data.Timestamp.SCHEMA);
@@ -417,11 +418,7 @@ public class OracleSourceTask extends SourceTask {
       }      
       log.info("Logminer stoppped successfully");       
     } catch (SQLException e){
-      log.error("SQL error during poll,you need restart the connector",e );
-      if(this.closed==false){
-        this.stop();
-        this.dostart();
-      }
+      log.error("SQL error during poll,you need restart the connector   "+Thread.currentThread().getName(),e );
       return new ArrayList<>();
     }catch(JSQLParserException e){
       log.error("SQL parser error during poll ", e);
@@ -434,22 +431,27 @@ public class OracleSourceTask extends SourceTask {
   }
 
   @Override
-  public synchronized void stop() {
+  public  void stop() {
     log.info("Stop called for logminer");
     try {
         this.closed = true;
         log.info("Logminer session cancel");
-        if((null != logMinerSelect && !logMinerSelect.isClosed()) || (null!=logMinerStartStmt && !logMinerStartStmt.isClosed())){
+        if((null != logMinerSelect && !logMinerSelect.isClosed())){
           logMinerSelect.cancel();
           logMinerSelect.close();
-          logMinerStartStmt.close();
+
+        }
+        if(null!=logMinerStartStmt && !logMinerStartStmt.isClosed()){
+            logMinerStartStmt.close();
         }
         if (dbConn != null && dbConn.isClosed()) {
           OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
           log.info("Closing database connection.Last SCN : {}", streamOffsetScn);
           dbConn.close();
         }
-    } catch (SQLException e) {log.error(e.getMessage());}
+    } catch (SQLException e) {
+      log.error(e.getMessage());
+    }
   }
 
   private Struct setValueV2(Data row,DataSchemaStruct dataSchemaStruct) {    
