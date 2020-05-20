@@ -84,7 +84,7 @@ public class OracleSourceTask extends SourceTask {
   PreparedStatement currentSCNStmt;
   ResultSet logMinerData;
   ResultSet currentScnResultSet;  
-  private boolean closed=false;
+  private volatile boolean  closed=false;
   private long lastTime = -1;
   private long lastBytes = -1;
   Boolean parseDmlData;
@@ -119,11 +119,8 @@ public class OracleSourceTask extends SourceTask {
   }
 
   private void dostart() {
-    try {
-      Thread.sleep(5000);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    }
+    if(this.closed == false) return;
+    this.closed = false;
     topic=config.getTopic();
     dbName=config.getDbNameAlias();
     filter = config.getOperatorFilter();
@@ -139,7 +136,7 @@ public class OracleSourceTask extends SourceTask {
     try {
       dbConn = new OracleConnection().connect(config);
       dbConn.setAutoCommit(false);
-      kafkaConn = OracleSqlUtils.getMBeanServerConnection(kafkaConn,kafkaUrl);
+//      kafkaConn = OracleSqlUtils.getMBeanServerConnection(kafkaConn,kafkaUrl);
       utils = new OracleSourceConnectorUtils(dbConn, config);
       int dbVersion = utils.getDbVersion();
       log.info("Connected to database version {}",dbVersion);
@@ -278,10 +275,10 @@ public class OracleSourceTask extends SourceTask {
     int tk = Integer.parseInt(taskMax);
     try {
       ArrayList<SourceRecord> records = new ArrayList<>();
-      if(dbConn.isClosed() || logMinerData.isClosed()){
-        this.closed = false;
-        dostart();
-      }
+//      if(dbConn.isClosed() || logMinerData.isClosed()){
+//        this.closed = false;
+//        dostart();
+//      }
       //default false
       if (!oraDeSupportCM){
         while(!this.closed && logMinerData.next()){
@@ -296,23 +293,23 @@ public class OracleSourceTask extends SourceTask {
           }
 
           //limit resord
-          HashMap inputRate = OracleSqlUtils.getInputRate(kafkaConn, topic);
-          boolean status = (boolean)inputRate.get("status");
-          if(status){
-            boolean flag = false;
-            if(lastBytes != -1 && lastTime != -1)
-            while(true){
-              int rate = Integer.valueOf(rateBytes);
-              if((rate*1.0/1000.0*((long)inputRate.get("time")-lastTime))<((long)inputRate.get("inbyte")-lastBytes)){
-                  Thread.sleep(100);
-                  inputRate = OracleSqlUtils.getInputRate(kafkaConn, topic);
-              }else{
-                break;
-              }
-            }
-            lastBytes = (long)inputRate.get("inbyte");
-            lastTime = (long)inputRate.get("time");
-          }
+//          HashMap inputRate = OracleSqlUtils.getInputRate(kafkaConn, topic);
+//          boolean status = (boolean)inputRate.get("status");
+//          if(status){
+//            boolean flag = false;
+//            if(lastBytes != -1 && lastTime != -1)
+//            while(true){
+//              int rate = Integer.valueOf(rateBytes);
+//              if((rate*1.0/1000.0*((long)inputRate.get("time")-lastTime))<((long)inputRate.get("inbyte")-lastBytes)){
+//                  Thread.sleep(100);
+//                  inputRate = OracleSqlUtils.getInputRate(kafkaConn, topic);
+//              }else{
+//                break;
+//              }
+//            }
+//            lastBytes = (long)inputRate.get("inbyte");
+//            lastTime = (long)inputRate.get("time");
+//          }
 
           Long commitScn=logMinerData.getLong(COMMIT_SCN_FIELD);
           String rowId=logMinerData.getString(ROW_ID_FIELD);
@@ -421,7 +418,10 @@ public class OracleSourceTask extends SourceTask {
       log.info("Logminer stoppped successfully");       
     } catch (SQLException e){
       log.error("SQL error during poll,you need restart the connector",e );
-      stop();
+      if(this.closed==false){
+        this.stop();
+        this.dostart();
+      }
       return new ArrayList<>();
     }catch(JSQLParserException e){
       log.error("SQL parser error during poll ", e);
@@ -434,22 +434,22 @@ public class OracleSourceTask extends SourceTask {
   }
 
   @Override
-  public void stop() {
+  public synchronized void stop() {
     log.info("Stop called for logminer");
     try {
-      this.closed = true;
-      log.info("Logminer session cancel");
-      logMinerSelect.cancel();
-      OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
-      if (dbConn!=null){
-        log.info("Closing database connection.Last SCN : {}",streamOffsetScn);        
-        logMinerSelect.close();
-        logMinerStartStmt.close();        
-        dbConn.close();
-      }
+        this.closed = true;
+        log.info("Logminer session cancel");
+        if((null != logMinerSelect && !logMinerSelect.isClosed()) || (null!=logMinerStartStmt && !logMinerStartStmt.isClosed())){
+          logMinerSelect.cancel();
+          logMinerSelect.close();
+          logMinerStartStmt.close();
+        }
+        if (dbConn != null && dbConn.isClosed()) {
+          OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
+          log.info("Closing database connection.Last SCN : {}", streamOffsetScn);
+          dbConn.close();
+        }
     } catch (SQLException e) {log.error(e.getMessage());}
-
-
   }
 
   private Struct setValueV2(Data row,DataSchemaStruct dataSchemaStruct) {    
