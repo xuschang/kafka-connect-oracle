@@ -382,8 +382,8 @@ public class OracleSourceTask extends SourceTask {
           }
           Schema dataSchemaCust = dataSchemaBuiler.build();
           Struct valueStruct = new Struct(dataSchemaCust);
-           valueStruct.put("$database", row.getSegOwner())
-                  .put("$table_name", row.getSegName());
+           valueStruct.put("database", row.getSegOwner())
+                  .put("table_name", row.getSegName());
           for(Field item:dataSchemaCust.fields()){
               if(item.name().contains("$")){
                 continue;
@@ -404,8 +404,8 @@ public class OracleSourceTask extends SourceTask {
             }
           }
           valueStruct
-                  .put("$operation", row.getOperation())
-                  .put("$timestamp", row.getTimeStamp());
+                  .put("operation", row.getOperation())
+                  .put("timestamp", row.getTimeStamp());
 
           records.add(new SourceRecord(sourcePartition(), sourceOffset(scn,commitScn,rowId), topic,  dataSchemaCust, valueStruct));
           streamOffsetScn=scn;
