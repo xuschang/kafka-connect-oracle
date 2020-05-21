@@ -367,10 +367,10 @@ public class OracleSourceTask extends SourceTask {
 
           //schema parse
           SchemaBuilder dataSchemaBuiler = SchemaBuilder.struct().name("value");
-          dataSchemaBuiler.field("$operation",Schema.STRING_SCHEMA);
-          dataSchemaBuiler.field("$timestamp",org.apache.kafka.connect.data.Timestamp.SCHEMA);
-          dataSchemaBuiler.field("$table_name",Schema.STRING_SCHEMA);
-          dataSchemaBuiler.field("$database",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("operation",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("timestamp",org.apache.kafka.connect.data.Timestamp.SCHEMA);
+          dataSchemaBuiler.field("table_name",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("database",Schema.STRING_SCHEMA);
           List<Field> fields = null;
           if(dataSchemaStruct.getDataStruct() != null)
             fields = dataSchemaStruct.getDataStruct().schema().fields();
