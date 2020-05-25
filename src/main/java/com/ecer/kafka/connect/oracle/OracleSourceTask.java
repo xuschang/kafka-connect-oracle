@@ -238,11 +238,6 @@ public class OracleSourceTask extends SourceTask {
                 log.info("Closing database connection.Last SCN : {}",streamOffsetScn);
                 logMinerSelect.close();
                 logMinerStartStmt.close();
-                try {
-                  Thread.sleep(5000);
-                }catch (Exception e){
-                  log.error("run stop error",e);
-                }
                 dbConn.close();
               }
             } catch (SQLException e) {log.error(e.getMessage());}
@@ -274,7 +269,7 @@ public class OracleSourceTask extends SourceTask {
 
     int tk = Integer.parseInt(taskMax);
     try {
-      ArrayList<SourceRecord> records = new ArrayList<>();
+        ArrayList<SourceRecord> records = new ArrayList<>();
 //      if(dbConn.isClosed() || logMinerData.isClosed()){
 //        this.closed = false;
 //        dostart();
@@ -367,25 +362,25 @@ public class OracleSourceTask extends SourceTask {
 
           //schema parse
           SchemaBuilder dataSchemaBuiler = SchemaBuilder.struct().name("value");
-          dataSchemaBuiler.field("operation",Schema.STRING_SCHEMA);
-          dataSchemaBuiler.field("timestamp",org.apache.kafka.connect.data.Timestamp.SCHEMA);
-          dataSchemaBuiler.field("table_name",Schema.STRING_SCHEMA);
-          dataSchemaBuiler.field("database",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("v_operation",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("v_timestamp",org.apache.kafka.connect.data.Timestamp.SCHEMA);
+          dataSchemaBuiler.field("v_table_name",Schema.STRING_SCHEMA);
+          dataSchemaBuiler.field("v_database",Schema.STRING_SCHEMA);
           List<Field> fields = null;
           if(dataSchemaStruct.getDataStruct() != null)
             fields = dataSchemaStruct.getDataStruct().schema().fields();
           else
             fields = dataSchemaStruct.getBeforeDataStruct().schema().fields();
           for(Field item:fields){
-            if(!item.name().contains("$"))
+            if(!item.name().contains("v_"))
               dataSchemaBuiler.field(item.name(),item.schema());
           }
           Schema dataSchemaCust = dataSchemaBuiler.build();
           Struct valueStruct = new Struct(dataSchemaCust);
-           valueStruct.put("database", row.getSegOwner())
-                  .put("table_name", row.getSegName());
+           valueStruct.put("v_database", row.getSegOwner())
+                  .put("v_table_name", row.getSegName());
           for(Field item:dataSchemaCust.fields()){
-              if(item.name().contains("$")){
+              if(item.name().contains("v_")){
                 continue;
               }
             Struct dataStruct = dataSchemaStruct.getDataStruct();
@@ -404,8 +399,8 @@ public class OracleSourceTask extends SourceTask {
             }
           }
           valueStruct
-                  .put("operation", row.getOperation())
-                  .put("timestamp", row.getTimeStamp());
+                  .put("v_operation", row.getOperation())
+                  .put("v_timestamp", row.getTimeStamp());
 
           records.add(new SourceRecord(sourcePartition(), sourceOffset(scn,commitScn,rowId), topic,  dataSchemaCust, valueStruct));
           streamOffsetScn=scn;
@@ -444,13 +439,17 @@ public class OracleSourceTask extends SourceTask {
         if(null!=logMinerStartStmt && !logMinerStartStmt.isClosed()){
             logMinerStartStmt.close();
         }
-        if (dbConn != null && dbConn.isClosed()) {
+        if (dbConn != null && !dbConn.isClosed()) {
+          System.out.println("do stop " + this.config.getDbNameAlias());
           OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
           log.info("Closing database connection.Last SCN : {}", streamOffsetScn);
           dbConn.close();
         }
+      Thread.sleep(5000L);
     } catch (SQLException e) {
       log.error(e.getMessage());
+    }catch (InterruptedException e){
+      e.printStackTrace();
     }
   }
 
