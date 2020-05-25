@@ -28,9 +28,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import com.ecer.kafka.connect.oracle.models.Data;
 import com.ecer.kafka.connect.oracle.models.DataSchemaStruct;
@@ -48,8 +46,6 @@ import org.slf4j.LoggerFactory;
 import net.sf.jsqlparser.JSQLParserException;
 
 import javax.management.MBeanServerConnection;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  *  
@@ -217,8 +213,27 @@ public class OracleSourceTask extends SourceTask {
       logMinerSelect=dbConn.prepareCall(logMinerSelectSql);
       logMinerSelect.setFetchSize(config.getDbFetchSize());
       logMinerSelect.setLong(1, streamOffsetCommitScn);
-      logMinerData=logMinerSelect.executeQuery();
-      log.info("Logminer started successfully  "+Thread.currentThread().getName());
+      //new future for logminerData
+      Future future = executor.submit(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            logMinerData=logMinerSelect.executeQuery();
+          } catch (SQLException e) {
+            e.printStackTrace();
+          }
+        }
+      });
+        try {
+          future.get(10,TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        } catch (ExecutionException e) {
+          e.printStackTrace();
+        } catch (TimeoutException e) {
+          e.printStackTrace();
+        }
+        log.info("Logminer started successfully  "+Thread.currentThread().getName());
       }else{
         //tLogMiner = new Thread(new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils));
         tLogMiner = new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils,filter);
@@ -431,6 +446,8 @@ public class OracleSourceTask extends SourceTask {
     try {
         this.closed = true;
         log.info("Logminer session cancel");
+        log.info("minerdata shut down");
+        executor.shutdown();
         if((null != logMinerSelect && !logMinerSelect.isClosed())){
           logMinerSelect.cancel();
           logMinerSelect.close();
