@@ -90,7 +90,7 @@ public class OracleSourceTask extends SourceTask {
   Boolean oraDeSupportCM=false;
   BlockingQueue<SourceRecord> sourceRecordMq = new LinkedBlockingQueue<>();    
   LogMinerThread tLogMiner;
-  ExecutorService executor = Executors.newCachedThreadPool();
+  ExecutorService executor = Executors.newFixedThreadPool(1);
    
   @Override
   public String version() {
@@ -243,34 +243,33 @@ public class OracleSourceTask extends SourceTask {
         tLogMiner = new LogMinerThread(sourceRecordMq,dbConn,streamOffsetScn, logMinerStartStmt,logMinerSelectSql,config.getDbFetchSize(),topic,dbName,utils,filter);
         //tLogMiner.start();
         executor.submit(tLogMiner);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(){
-          @Override
-          public void run(){
-            tLogMiner.shutDown();
-            executor.shutdown();
-            try {
-              log.info("Logminer session cancel");
-              logMinerSelect.cancel();
-              OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
-              if (dbConn!=null){
-                log.info("Closing database connection.Last SCN : {}",streamOffsetScn);
-                logMinerSelect.close();
-                logMinerStartStmt.close();
-                dbConn.close();
-              }
-            } catch (SQLException e) {log.error(e.getMessage());}
-
-            try {
-              log.info("Waiting for logminer thread to shut down,exiting cleanly");
-              if (executor.awaitTermination(20000, TimeUnit.MILLISECONDS)) {
-              }
-            } catch (Exception e) {
-              log.error(e.getMessage());
-            }
-          }
-        });
       }
+      Runtime.getRuntime().addShutdownHook(new Thread(){
+        @Override
+        public void run(){
+          tLogMiner.shutDown();
+          executor.shutdownNow();
+          try {
+            log.info("Logminer session cancel");
+            logMinerSelect.cancel();
+            OracleSqlUtils.executeCallableStmt(dbConn, OracleConnectorSQL.STOP_LOGMINER_CMD);
+            if (dbConn!=null){
+              log.info("Closing database connection.Last SCN : {}",streamOffsetScn);
+              logMinerSelect.close();
+              logMinerStartStmt.close();
+              dbConn.close();
+            }
+          } catch (SQLException e) {log.error(e.getMessage());}
+
+          try {
+            log.info("Waiting for logminer thread to shut down,exiting cleanly");
+            if (executor.awaitTermination(20000, TimeUnit.MILLISECONDS)) {
+            }
+          } catch (Exception e) {
+            log.error(e.getMessage());
+          }
+        }
+      });
     }catch(SQLException e){
       throw new ConnectException("Error at database tier, Please check : "+e.toString());
     }
@@ -451,7 +450,7 @@ public class OracleSourceTask extends SourceTask {
         this.closed = true;
         log.info("Logminer session cancel");
         log.info("minerdata shut down");
-        executor.shutdown();
+        executor.shutdownNow();
         if((null != logMinerSelect && !logMinerSelect.isClosed())){
           logMinerSelect.cancel();
           logMinerSelect.close();
