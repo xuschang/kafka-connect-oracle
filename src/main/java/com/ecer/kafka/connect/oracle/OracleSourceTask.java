@@ -90,7 +90,7 @@ public class OracleSourceTask extends SourceTask {
   Boolean oraDeSupportCM=false;
   BlockingQueue<SourceRecord> sourceRecordMq = new LinkedBlockingQueue<>();    
   LogMinerThread tLogMiner;
-  ExecutorService executor = Executors.newFixedThreadPool(1);
+  ExecutorService executor = Executors.newCachedThreadPool();
    
   @Override
   public String version() {
@@ -214,24 +214,28 @@ public class OracleSourceTask extends SourceTask {
       logMinerSelect.setFetchSize(config.getDbFetchSize());
       logMinerSelect.setLong(1, streamOffsetCommitScn);
       //new future for logminerData
-      Future future = executor.submit(new Runnable() {
-        @Override
-        public void run() {
+        if(logMinerData == null) {
+          executor.submit(new Runnable() {
+            @Override
+            public void run() {
+              try {
+                if (logMinerData == null)
+                  logMinerData = logMinerSelect.executeQuery();
+              } catch (SQLException e) {
+                e.printStackTrace();
+              }
+            }
+          });
+        }
+        while(true) {
+          if (logMinerData != null)
+            break;
           try {
-            logMinerData=logMinerSelect.executeQuery();
-          } catch (SQLException e) {
+            Thread.sleep(1000L);
+            System.out.println("sleep 1s"+" " + config.getTopic()+" "+config.getTaskId());
+          } catch (InterruptedException e) {
             e.printStackTrace();
           }
-        }
-      });
-        try {
-          future.get(10,TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        } catch (ExecutionException e) {
-          e.printStackTrace();
-        } catch (TimeoutException e) {
-          e.printStackTrace();
         }
         log.info("Logminer started successfully  "+Thread.currentThread().getName());
       }else{
